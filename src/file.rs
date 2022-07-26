@@ -24,11 +24,6 @@ impl ChunkedFile {
     pub fn new(payload: Vec<u8>, options: ChunkOptions) -> ChunkedFile {
         let payload_length = payload.len();
 
-        // This should be impossible
-        if payload_length > u64::MAX.try_into().unwrap() {
-            panic!("Invalid payload size, maximum is {} bytes", u64::MAX);
-        }
-
         ChunkedFile {
             payload,
             span: Span::new(payload_length as u64),

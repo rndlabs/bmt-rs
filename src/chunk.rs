@@ -2,20 +2,18 @@ use crate::{span::Span, SEGMENT_SIZE};
 use ethers::{prelude::Bytes, utils::keccak256};
 
 use crate::{
-    DEFAULT_MAX_PAYLOAD_SIZE, DEFAULT_MIN_PAYLOAD_SIZE, DEFAULT_SPAN_SIZE, HASH_SIZE,
+    DEFAULT_MAX_PAYLOAD_SIZE, DEFAULT_MIN_PAYLOAD_SIZE, HASH_SIZE,
     SEGMENT_PAIR_SIZE,
 };
 
 pub struct ChunkOptions {
     pub max_payload_size: usize,
-    pub span_length: u8,
 }
 
 impl Default for ChunkOptions {
     fn default() -> Self {
         Self {
             max_payload_size: DEFAULT_MAX_PAYLOAD_SIZE,
-            span_length: DEFAULT_SPAN_SIZE,
         }
     }
 }
@@ -24,21 +22,9 @@ impl Clone for ChunkOptions {
     fn clone(&self) -> Self {
         Self {
             max_payload_size: self.max_payload_size,
-            span_length: self.span_length,
         }
     }
 }
-
-// pub trait ChunkTrait {
-//     fn payload(self: &Self) -> &Box<[u8]>;
-//     fn max_payload_length(self: &Self) -> usize;
-//     fn span_length(self: &Self) -> u8;
-//     fn span(self: &Self) -> &Span;
-//     fn address(self: &Self) -> [u8; 32];
-//     fn inclusion_proof(self: &Self) -> Vec<u8>;
-//     fn bmt(self: &Self) -> Vec<Vec<u8>>;
-//     fn bmt_root_hash(self: &Self) -> Vec<u8>;
-// }
 
 pub struct Chunk {
     payload: Vec<u8>,
@@ -99,10 +85,6 @@ impl Chunk {
         self.options.max_payload_size
     }
 
-    pub fn span_length(&self) -> u8 {
-        self.options.span_length
-    }
-
     pub fn span(&self) -> &Span {
         &self.span
     }
@@ -129,10 +111,9 @@ impl Chunk {
         let mut sister_segments: Vec<Vec<u8>> = Vec::new();
 
         for level in tree.iter().take(tree.len() - 1) {
-            let sister_segment_index = match segment_index % 2 {
-                0 => segment_index + 1,
-                1 => segment_index - 1,
-                _ => panic!("Impossible"),
+            let sister_segment_index = match segment_index % 2 == 0 {
+                true => segment_index + 1,
+                false => segment_index - 1,
             };
 
             sister_segments.push(
@@ -155,16 +136,15 @@ impl Chunk {
     ) -> Bytes {
         let mut calculated_hash = prove_segment;
         for mut proof_segment in proof_segments {
-            calculated_hash = match prove_segment_index % 2 {
-                0 => {
+            calculated_hash = match prove_segment_index % 2 == 0 {
+                true => {
                     calculated_hash.extend(proof_segment);
                     Vec::from(keccak256(calculated_hash))
                 }
-                1 => {
+                false => {
                     proof_segment.extend(calculated_hash);
                     Vec::from(keccak256(proof_segment))
                 }
-                _ => panic!("Impossible"),
             };
 
             prove_segment_index >>= 1;
@@ -174,11 +154,6 @@ impl Chunk {
     }
 
     pub fn bmt(&self) -> Vec<Vec<u8>> {
-        let payload_length = self.payload.len();
-        if payload_length > self.options.max_payload_size {
-            panic!("Invalid data length {}", payload_length);
-        }
-
         let mut input: Vec<u8> = self.payload.to_vec();
         let mut tree: Vec<Vec<u8>> = Vec::new();
         loop {
@@ -209,11 +184,6 @@ impl Chunk {
     }
 
     pub fn bmt_root_hash(&self) -> Bytes {
-        let payload_length = self.payload.len();
-        if payload_length > self.options.max_payload_size {
-            panic!("Invalid data length {}", payload_length);
-        }
-
         let mut input: Vec<u8> = self.payload.to_vec();
         loop {
             let num_pairs = input.len() / SEGMENT_PAIR_SIZE;
