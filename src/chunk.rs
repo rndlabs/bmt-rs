@@ -1,0 +1,378 @@
+use crate::{span::Span, SEGMENT_SIZE};
+use ethers::{prelude::Bytes, utils::keccak256};
+
+use crate::{
+    DEFAULT_MAX_PAYLOAD_SIZE, DEFAULT_MIN_PAYLOAD_SIZE, DEFAULT_SPAN_SIZE, HASH_SIZE,
+    SEGMENT_PAIR_SIZE,
+};
+
+pub struct ChunkOptions {
+    pub max_payload_size: usize,
+    pub span_length: u8,
+}
+
+impl Default for ChunkOptions {
+    fn default() -> Self {
+        Self {
+            max_payload_size: DEFAULT_MAX_PAYLOAD_SIZE,
+            span_length: DEFAULT_SPAN_SIZE,
+        }
+    }
+}
+
+impl Clone for ChunkOptions {
+    fn clone(&self) -> Self {
+        Self {
+            max_payload_size: self.max_payload_size.clone(),
+            span_length: self.span_length.clone(),
+        }
+    }
+}
+
+// pub trait ChunkTrait {
+//     fn payload(self: &Self) -> &Box<[u8]>;
+//     fn max_payload_length(self: &Self) -> usize;
+//     fn span_length(self: &Self) -> u8;
+//     fn span(self: &Self) -> &Span;
+//     fn address(self: &Self) -> [u8; 32];
+//     fn inclusion_proof(self: &Self) -> Vec<u8>;
+//     fn bmt(self: &Self) -> Vec<Vec<u8>>;
+//     fn bmt_root_hash(self: &Self) -> Vec<u8>;
+// }
+
+pub struct Chunk {
+    payload: Vec<u8>,
+    pub payload_length: usize,
+    span: Span,
+    options: ChunkOptions,
+}
+
+impl Clone for Chunk {
+    fn clone(&self) -> Self {
+        Self {
+            payload: self.payload.clone(),
+            payload_length: self.payload_length.clone(),
+            span: self.span.clone(),
+            options: self.options.clone(),
+        }
+    }
+}
+
+impl Chunk {
+    pub fn new(
+        payload: &mut Vec<u8>,
+        starting_span_value: Option<u64>,
+        options: ChunkOptions,
+    ) -> Chunk {
+        let payload_length: usize = payload.len();
+
+        let payload: Vec<u8> = match payload_length {
+            DEFAULT_MIN_PAYLOAD_SIZE..=DEFAULT_MAX_PAYLOAD_SIZE => {
+                // resize to max payload size (zero-padding)
+                if payload.len() != options.max_payload_size {
+                    payload.resize(options.max_payload_size, 0);
+                }
+                payload[..].to_vec()
+            }
+            _ => panic!(
+                "Payload must be a minimum of {} bytes, and a maximum of {} bytes",
+                DEFAULT_MIN_PAYLOAD_SIZE, DEFAULT_MAX_PAYLOAD_SIZE
+            ),
+        };
+
+        Chunk {
+            payload,
+            payload_length,
+            options,
+            span: Span::new(match starting_span_value {
+                Some(value) => value,
+                None => payload_length as u64,
+            }),
+        }
+    }
+
+    pub fn payload(self: &Self) -> &Vec<u8> {
+        &self.payload
+    }
+
+    pub fn max_payload_length(self: &Self) -> usize {
+        self.options.max_payload_size
+    }
+
+    pub fn span_length(self: &Self) -> u8 {
+        self.options.span_length
+    }
+
+    pub fn span(self: &Self) -> &Span {
+        &self.span
+    }
+
+    pub fn address(self: &Self) -> Vec<u8> {
+        let mut hash_input: Vec<u8> = self.span().to_bytes().into_iter().collect();
+        hash_input.extend(&self.bmt_root_hash());
+
+        Vec::from(keccak256(hash_input))
+    }
+
+    pub fn inclusion_proof(self: &Self, mut segment_index: usize) -> Vec<Vec<u8>> {
+        let payload_length = self.payload().len();
+
+        if segment_index * SEGMENT_SIZE >= payload_length {
+            panic!(
+                "The given segment index {} is greater than {}",
+                segment_index,
+                (payload_length / SEGMENT_SIZE) - 1
+            )
+        }
+
+        let tree = self.bmt();
+        let mut sister_segments: Vec<Vec<u8>> = Vec::new();
+        let root_hash_level = tree.len() - 1;
+
+        for level in 0..root_hash_level {
+            let sister_segment_index = match segment_index % 2 {
+                0 => segment_index + 1,
+                1 => segment_index - 1,
+                _ => panic!("Impossible"),
+            };
+
+            sister_segments.push(
+                tree[level][sister_segment_index * SEGMENT_SIZE
+                    ..(sister_segment_index + 1) * SEGMENT_SIZE]
+                    .to_vec(),
+            );
+
+            segment_index = segment_index >> 1;
+        }
+
+        sister_segments
+    }
+
+    pub fn root_hash_from_inclusion_proof(
+        self: &Self,
+        proof_segments: Vec<Vec<u8>>,
+        prove_segment: Vec<u8>,
+        mut prove_segment_index: u32,
+    ) -> Bytes {
+        let mut calculated_hash = prove_segment;
+        for mut proof_segment in proof_segments {
+            calculated_hash = match prove_segment_index % 2 {
+                0 => {
+                    calculated_hash.extend(proof_segment);
+                    Vec::from(keccak256(calculated_hash))
+                }
+                1 => {
+                    proof_segment.extend(calculated_hash);
+                    Vec::from(keccak256(proof_segment))
+                }
+                _ => panic!("Impossible"),
+            };
+
+            prove_segment_index = prove_segment_index >> 1;
+        }
+
+        Bytes::from(calculated_hash)
+    }
+
+    pub fn bmt(self: &Self) -> Vec<Vec<u8>> {
+        let payload_length = self.payload.len();
+        if payload_length > self.options.max_payload_size {
+            panic!("Invalid data length {}", payload_length);
+        }
+
+        let mut input: Vec<u8> = self.payload.to_vec();
+        let mut tree: Vec<Vec<u8>> = Vec::new();
+        loop {
+            tree.push(input.clone());
+            let num_pairs = input.len() / SEGMENT_PAIR_SIZE;
+            let mut output: Vec<u8> = Vec::<u8>::with_capacity(num_pairs);
+
+            // in each round we hash the segment pairs together
+            for pair in 0..num_pairs {
+                let mut hash: Vec<u8> =
+                    keccak256(&input[pair * SEGMENT_PAIR_SIZE..(pair + 1) * SEGMENT_PAIR_SIZE])
+                        .into_iter()
+                        .collect();
+                output.append(&mut hash);
+            }
+
+            input = output;
+
+            if input.len() == HASH_SIZE {
+                break;
+            }
+        }
+
+        // add the last "input" that is the bmt root hash of the application
+        tree.push(input);
+
+        tree
+    }
+
+    pub fn bmt_root_hash(self: &Self) -> Bytes {
+        let payload_length = self.payload.len();
+        if payload_length > self.options.max_payload_size {
+            panic!("Invalid data length {}", payload_length);
+        }
+
+        let mut input: Vec<u8> = self.payload.to_vec();
+        loop {
+            let num_pairs = input.len() / SEGMENT_PAIR_SIZE;
+            let mut output: Vec<u8> = Vec::<u8>::with_capacity(num_pairs);
+
+            // in each round we hash the segment pairs together
+            for pair in 0..num_pairs {
+                let mut hash: Vec<u8> =
+                    keccak256(&input[pair * SEGMENT_PAIR_SIZE..(pair + 1) * SEGMENT_PAIR_SIZE])
+                        .into_iter()
+                        .collect();
+                output.append(&mut hash);
+            }
+
+            input = output;
+
+            if input.len() == HASH_SIZE {
+                return Bytes::from(input);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ethers::prelude::Bytes;
+
+    use super::*;
+
+    const EXPECTED_SPAN: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
+
+    fn setup() -> Chunk {
+        let mut payload: Vec<u8> = vec![1, 2, 3];
+
+        Chunk::new(&mut payload, None, ChunkOptions::default())
+    }
+
+    #[test]
+    fn bmt_hash() {
+        let chunk = setup();
+        assert_eq!(chunk.span().to_bytes(), EXPECTED_SPAN);
+        assert_eq!(
+            Bytes::from(chunk.address()).to_string(),
+            "0xca6357a08e317d15ec560fef34e4c45f8f19f01c372aa70f1da72bfa7f1a4338"
+        );
+    }
+
+    #[test]
+    fn bmt_tree() {
+        let chunk = setup();
+        let tree = chunk.bmt();
+
+        let mut to_hash = Vec::from(chunk.span.to_bytes());
+        to_hash.extend(tree[tree.len() - 1].clone().into_iter());
+
+        assert_eq!(tree.len(), 8);
+        assert_eq!(Bytes::from(keccak256(to_hash)), chunk.address());
+    }
+
+    #[test]
+    fn inclusion_proof() {
+        let chunk = setup();
+        let tree = chunk.bmt();
+
+        assert_eq!(tree.len(), 8);
+
+        let test_get_root_hash = |segment_index: u32| -> Vec<u8> {
+            let inclusion_proof_segments = chunk.inclusion_proof(segment_index as usize);
+            let idx = segment_index as usize * SEGMENT_SIZE;
+            chunk
+                .root_hash_from_inclusion_proof(
+                    inclusion_proof_segments,
+                    chunk.payload()[idx..idx + SEGMENT_SIZE].to_vec(),
+                    segment_index,
+                )
+                .to_vec()
+        };
+
+        let root_hash = test_get_root_hash(0);
+        let mut to_hash = Vec::from(chunk.span().to_bytes());
+        to_hash.extend(&root_hash);
+
+        assert_eq!(
+            Bytes::from(keccak256(to_hash)).to_string(),
+            Bytes::from(chunk.address()).to_string()
+        );
+
+        assert_eq!(root_hash, test_get_root_hash(101));
+        assert_eq!(root_hash, test_get_root_hash(127));
+    }
+
+    #[test]
+    #[should_panic(expected = "The given segment index 128 is greater than 127")]
+    fn inclusive_proof_invalid_segment_index() {
+        let chunk = setup();
+        chunk.inclusion_proof(128);
+    }
+
+    #[test]
+    fn bee_inclusion_proofs() {
+        let mut payload = Vec::from(String::from("hello world").as_bytes());
+
+        let chunk = Chunk::new(&mut payload, None, ChunkOptions::default());
+        let inclusion_proof_segments: Vec<String> = chunk
+            .inclusion_proof(0)
+            .into_iter()
+            .map(|x| Bytes::from(x).to_string())
+            .collect();
+
+        assert_eq!(
+            inclusion_proof_segments,
+            vec![
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
+                "0xb4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d30",
+                "0x21ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85",
+                "0xe58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a19344",
+                "0x0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d",
+                "0x887c22bd8750d34016ac3c66b5ff102dacdd73f6b014e710b51e8022af9a1968",
+            ]
+        );
+
+        let inclusion_proof_segments: Vec<String> = chunk
+            .inclusion_proof(127)
+            .into_iter()
+            .map(|x| Bytes::from(x).to_string())
+            .collect();
+
+        assert_eq!(
+            inclusion_proof_segments,
+            vec![
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
+                "0xb4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d30",
+                "0x21ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85",
+                "0xe58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a19344",
+                "0x0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d",
+                "0x745bae095b6ff5416b4a351a167f731db6d6f5924f30cd88d48e74261795d27b",
+            ]
+        );
+
+        let inclusion_proof_segments: Vec<String> = chunk
+            .inclusion_proof(64)
+            .into_iter()
+            .map(|x| Bytes::from(x).to_string())
+            .collect();
+
+        assert_eq!(
+            inclusion_proof_segments,
+            vec![
+                "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
+                "0xb4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d30",
+                "0x21ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85",
+                "0xe58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a19344",
+                "0x0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d",
+                "0x745bae095b6ff5416b4a351a167f731db6d6f5924f30cd88d48e74261795d27b",
+            ]
+        );
+    }
+}
