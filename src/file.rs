@@ -190,10 +190,12 @@ impl ChunkedFile {
                 prove_segment_index = prove_segment_index / 2;
             }
             calculated_hash = Vec::<u8>::from(keccak256::<Vec<u8>>(
-                prove_chunk.span.to_bytes()
-                .into_iter()
-                .chain(calculated_hash.into_iter())
-                .collect()
+                prove_chunk
+                    .span
+                    .to_bytes()
+                    .into_iter()
+                    .chain(calculated_hash.into_iter())
+                    .collect(),
             ));
             // this line is necessary if the prove_segment_index
             // was in a carrier chunk
@@ -269,7 +271,8 @@ impl ChunkedFile {
         let mut carrier_chunk = Self::pop_carrier_chunk(level_chunks);
 
         while level_chunks.len() != 1 || carrier_chunk.is_some() {
-            (*level_chunks, carrier_chunk) = Self::next_bmt_level(level_chunks, carrier_chunk.clone());
+            (*level_chunks, carrier_chunk) =
+                Self::next_bmt_level(level_chunks, carrier_chunk.clone());
         }
 
         level_chunks[0].clone()
@@ -344,9 +347,7 @@ impl ChunkedFile {
         let max_segment_count = chunks[0].max_payload_length() / SEGMENT_SIZE;
 
         match chunks.len() % max_segment_count {
-            1 => {
-                chunks.pop()
-            }
+            1 => chunks.pop(),
             _ => None,
         }
     }
@@ -559,9 +560,7 @@ mod tests {
             } else {
                 idx * SEGMENT_SIZE + SEGMENT_SIZE
             };
-            let mut prove_segment: Vec<u8> = payload
-                [idx * SEGMENT_SIZE..end]
-                .to_vec();
+            let mut prove_segment: Vec<u8> = payload[idx * SEGMENT_SIZE..end].to_vec();
 
             // padding
             prove_segment.resize(SEGMENT_SIZE, 0);
@@ -570,16 +569,14 @@ mod tests {
             let file_size_from_proof = proof_chunks[proof_chunks.len() - 1].span.value();
             assert_eq!(file_size_from_proof, file_length as u64);
 
-            ChunkedFile::file_address_from_inclusion_proof(
-                proof_chunks, 
-                prove_segment, 
-                idx, 
-                4096
-            )
+            ChunkedFile::file_address_from_inclusion_proof(proof_chunks, prove_segment, idx, 4096)
         };
 
         // edge case
-        assert_eq!(test_get_file_hash(segment_index, &chunked_file.payload), file_hash);
+        assert_eq!(
+            test_get_file_hash(segment_index, &chunked_file.payload),
+            file_hash
+        );
         assert_eq!(test_get_file_hash(1000, &chunked_file.payload), file_hash);
     }
 
@@ -594,16 +591,14 @@ mod tests {
         let last_segment_index = (file_length - 1) / 32;
 
         // gives back the file hash calculated from the inclusion proof method
-        let test_get_file_hash = |idx: usize, payload :&Vec<u8>| -> Vec<u8> {
+        let test_get_file_hash = |idx: usize, payload: &Vec<u8>| -> Vec<u8> {
             let proof_chunks = chunked_file.file_inclusion_proof_bottom_up(idx);
             let end = if ((idx * SEGMENT_SIZE) + SEGMENT_SIZE) > payload.len() {
                 payload.len()
             } else {
                 idx * SEGMENT_SIZE + SEGMENT_SIZE
             };
-            let mut prove_segment: Vec<u8> = payload
-                [idx * SEGMENT_SIZE..end]
-                .to_vec();
+            let mut prove_segment: Vec<u8> = payload[idx * SEGMENT_SIZE..end].to_vec();
 
             // padding
             prove_segment.resize(SEGMENT_SIZE, 0);
@@ -612,16 +607,14 @@ mod tests {
             let file_size_from_proof = proof_chunks[proof_chunks.len() - 1].span.value();
             assert_eq!(file_size_from_proof, file_length as u64);
 
-            ChunkedFile::file_address_from_inclusion_proof(
-                proof_chunks, 
-                prove_segment, 
-                idx, 
-                4096
-            )
+            ChunkedFile::file_address_from_inclusion_proof(proof_chunks, prove_segment, idx, 4096)
         };
 
         // edge case
-        assert_eq!(test_get_file_hash(last_segment_index, &chunked_file.payload), file_hash);
+        assert_eq!(
+            test_get_file_hash(last_segment_index, &chunked_file.payload),
+            file_hash
+        );
         assert_eq!(test_get_file_hash(1000, &chunked_file.payload), file_hash);
     }
 
@@ -636,16 +629,14 @@ mod tests {
         let last_segment_index = (file_length - 1) / 32;
 
         // gives back the file hash calculated from the inclusion proof method
-        let test_get_file_hash = |idx: usize, payload :&Vec<u8>| -> Vec<u8> {
+        let test_get_file_hash = |idx: usize, payload: &Vec<u8>| -> Vec<u8> {
             let proof_chunks = chunked_file.file_inclusion_proof_bottom_up(idx);
             let end = if ((idx * SEGMENT_SIZE) + SEGMENT_SIZE) > payload.len() {
                 payload.len()
             } else {
                 idx * SEGMENT_SIZE + SEGMENT_SIZE
             };
-            let mut prove_segment: Vec<u8> = payload
-                [idx * SEGMENT_SIZE..end]
-                .to_vec();
+            let mut prove_segment: Vec<u8> = payload[idx * SEGMENT_SIZE..end].to_vec();
 
             // padding
             prove_segment.resize(SEGMENT_SIZE, 0);
@@ -654,15 +645,13 @@ mod tests {
             let file_size_from_proof = proof_chunks[proof_chunks.len() - 1].span.value();
             assert_eq!(file_size_from_proof, file_length as u64);
 
-            ChunkedFile::file_address_from_inclusion_proof(
-                proof_chunks, 
-                prove_segment, 
-                idx, 
-                4096
-            )
+            ChunkedFile::file_address_from_inclusion_proof(proof_chunks, prove_segment, idx, 4096)
         };
         // edge case
-        assert_eq!(test_get_file_hash(last_segment_index, &chunked_file.payload), file_hash);
+        assert_eq!(
+            test_get_file_hash(last_segment_index, &chunked_file.payload),
+            file_hash
+        );
         assert_eq!(test_get_file_hash(1000, &chunked_file.payload), file_hash);
         // expect(() => testGetFileHash(lastSegmentIndex + 1)).toThrowError(/^The given segment index/)
     }
