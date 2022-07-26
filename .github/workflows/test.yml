@@ -1,0 +1,57 @@
+on: [push, pull_request]
+
+name: CICD
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          override: true
+      
+      - uses: Swatinem/rust-cache@v1
+        with:
+          cache-on-failure: true
+      
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          components: rustfmt, clippy
+          override: true
+      
+      - uses: Swatinem/rust-cache@v1
+        with:
+          cache-on-failure: true
+      
+      - name: cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+      
+      - name: cargo clippy
+        uses: actions-rs/clippy-check@v1
+        with:
+          args: --all --all-features -- -D warnings
+          token: ${{ secrets.GITHUB_TOKEN }}
