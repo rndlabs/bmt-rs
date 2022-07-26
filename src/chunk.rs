@@ -127,9 +127,8 @@ impl Chunk {
 
         let tree = self.bmt();
         let mut sister_segments: Vec<Vec<u8>> = Vec::new();
-        let root_hash_level = tree.len() - 1;
 
-        for level in 0..root_hash_level {
+        for level in tree.iter().take(tree.len() - 1) {
             let sister_segment_index = match segment_index % 2 {
                 0 => segment_index + 1,
                 1 => segment_index - 1,
@@ -137,7 +136,7 @@ impl Chunk {
             };
 
             sister_segments.push(
-                tree[level][sister_segment_index * SEGMENT_SIZE
+                level[sister_segment_index * SEGMENT_SIZE
                     ..(sister_segment_index + 1) * SEGMENT_SIZE]
                     .to_vec(),
             );

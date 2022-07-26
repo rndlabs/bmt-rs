@@ -104,7 +104,7 @@ impl ChunkedFile {
             // edge-case carrier chunk
             if chunk_index_for_proof == level_chunks.len() {
                 // carrier chunk has been placed to somewhere else in the bmt tree
-                if !carrier_chunk.is_some() {
+                if carrier_chunk.is_none() {
                     panic!("Impossible");
                 }
 
@@ -325,9 +325,9 @@ impl ChunkedFile {
         (next_level_chunks, next_level_carrier_chunk)
     }
 
-    pub fn create_intermediate_chunk(chunks: &mut Vec<Chunk>, options: ChunkOptions) -> Chunk {
+    pub fn create_intermediate_chunk(chunks: &mut [Chunk], options: ChunkOptions) -> Chunk {
         let (mut chunk_addresses, chunk_span_sum_values) = chunks
-            .into_iter()
+            .iter_mut()
             .map(|f| (f.address(), f.span().value()))
             .reduce(|mut prev, mut curr| {
                 prev.0.append(&mut curr.0);
