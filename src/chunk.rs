@@ -1,10 +1,7 @@
 use crate::{span::Span, SEGMENT_SIZE};
 use ethers::{prelude::Bytes, utils::keccak256};
 
-use crate::{
-    DEFAULT_MAX_PAYLOAD_SIZE, DEFAULT_MIN_PAYLOAD_SIZE, HASH_SIZE,
-    SEGMENT_PAIR_SIZE,
-};
+use crate::{DEFAULT_MAX_PAYLOAD_SIZE, DEFAULT_MIN_PAYLOAD_SIZE, HASH_SIZE, SEGMENT_PAIR_SIZE};
 
 pub struct ChunkOptions {
     pub max_payload_size: usize,
