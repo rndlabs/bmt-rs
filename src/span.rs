@@ -23,9 +23,7 @@ impl Span {
 
 impl Clone for Span {
     fn clone(&self) -> Self {
-        Self {
-            value: self.value,
-        }
+        Self { value: self.value }
     }
 }
 
@@ -41,7 +39,7 @@ mod tests {
 
     #[test]
     fn max_span_size() {
-        const MAX_SPAN_SIZE: u64 = (2^32) - 1;
+        const MAX_SPAN_SIZE: u64 = (2 ^ 32) - 1;
         let span = Span::new(MAX_SPAN_SIZE);
         assert_eq!(u64::from_le_bytes(span.to_bytes()), MAX_SPAN_SIZE);
     }
