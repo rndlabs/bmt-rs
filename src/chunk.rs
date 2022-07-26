@@ -1,5 +1,4 @@
-use crate::{span::Span, SEGMENT_SIZE};
-use ethers::{prelude::Bytes, utils::keccak256};
+use crate::{keccak256, span::Span, SEGMENT_SIZE};
 
 use crate::{DEFAULT_MAX_PAYLOAD_SIZE, DEFAULT_MIN_PAYLOAD_SIZE, HASH_SIZE, SEGMENT_PAIR_SIZE};
 
@@ -130,7 +129,7 @@ impl Chunk {
         proof_segments: Vec<Vec<u8>>,
         prove_segment: Vec<u8>,
         mut prove_segment_index: u32,
-    ) -> Bytes {
+    ) -> Vec<u8> {
         let mut calculated_hash = prove_segment;
         for mut proof_segment in proof_segments {
             calculated_hash = match prove_segment_index % 2 == 0 {
@@ -147,7 +146,7 @@ impl Chunk {
             prove_segment_index >>= 1;
         }
 
-        Bytes::from(calculated_hash)
+        calculated_hash
     }
 
     pub fn bmt(&self) -> Vec<Vec<u8>> {
@@ -180,7 +179,7 @@ impl Chunk {
         tree
     }
 
-    pub fn bmt_root_hash(&self) -> Bytes {
+    pub fn bmt_root_hash(&self) -> Vec<u8> {
         let mut input: Vec<u8> = self.payload.to_vec();
         loop {
             let num_pairs = input.len() / SEGMENT_PAIR_SIZE;
@@ -198,7 +197,7 @@ impl Chunk {
             input = output;
 
             if input.len() == HASH_SIZE {
-                return Bytes::from(input);
+                return input;
             }
         }
     }
@@ -206,7 +205,7 @@ impl Chunk {
 
 #[cfg(test)]
 mod tests {
-    use ethers::prelude::Bytes;
+    use hex::ToHex;
 
     use super::*;
 
@@ -223,8 +222,8 @@ mod tests {
         let chunk = setup();
         assert_eq!(chunk.span().to_bytes(), EXPECTED_SPAN);
         assert_eq!(
-            Bytes::from(chunk.address()).to_string(),
-            "0xca6357a08e317d15ec560fef34e4c45f8f19f01c372aa70f1da72bfa7f1a4338"
+            chunk.address().encode_hex::<String>(),
+            "ca6357a08e317d15ec560fef34e4c45f8f19f01c372aa70f1da72bfa7f1a4338"
         );
     }
 
@@ -237,7 +236,7 @@ mod tests {
         to_hash.extend(tree[tree.len() - 1].clone().into_iter());
 
         assert_eq!(tree.len(), 8);
-        assert_eq!(Bytes::from(keccak256(to_hash)), chunk.address());
+        assert_eq!(keccak256(to_hash).to_vec(), chunk.address());
     }
 
     #[test]
@@ -263,10 +262,7 @@ mod tests {
         let mut to_hash = Vec::from(chunk.span().to_bytes());
         to_hash.extend(&root_hash);
 
-        assert_eq!(
-            Bytes::from(keccak256(to_hash)).to_string(),
-            Bytes::from(chunk.address()).to_string()
-        );
+        assert_eq!(keccak256(to_hash).to_vec(), chunk.address());
 
         assert_eq!(root_hash, test_get_root_hash(101));
         assert_eq!(root_hash, test_get_root_hash(127));
@@ -287,57 +283,57 @@ mod tests {
         let inclusion_proof_segments: Vec<String> = chunk
             .inclusion_proof(0)
             .into_iter()
-            .map(|x| Bytes::from(x).to_string())
+            .map(|x| x.encode_hex::<String>())
             .collect();
 
         assert_eq!(
             inclusion_proof_segments,
             vec![
-                "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
-                "0xb4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d30",
-                "0x21ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85",
-                "0xe58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a19344",
-                "0x0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d",
-                "0x887c22bd8750d34016ac3c66b5ff102dacdd73f6b014e710b51e8022af9a1968",
+                "0000000000000000000000000000000000000000000000000000000000000000",
+                "ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
+                "b4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d30",
+                "21ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85",
+                "e58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a19344",
+                "0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d",
+                "887c22bd8750d34016ac3c66b5ff102dacdd73f6b014e710b51e8022af9a1968",
             ]
         );
 
         let inclusion_proof_segments: Vec<String> = chunk
             .inclusion_proof(127)
             .into_iter()
-            .map(|x| Bytes::from(x).to_string())
+            .map(|x| x.encode_hex::<String>())
             .collect();
 
         assert_eq!(
             inclusion_proof_segments,
             vec![
-                "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
-                "0xb4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d30",
-                "0x21ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85",
-                "0xe58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a19344",
-                "0x0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d",
-                "0x745bae095b6ff5416b4a351a167f731db6d6f5924f30cd88d48e74261795d27b",
+                "0000000000000000000000000000000000000000000000000000000000000000",
+                "ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
+                "b4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d30",
+                "21ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85",
+                "e58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a19344",
+                "0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d",
+                "745bae095b6ff5416b4a351a167f731db6d6f5924f30cd88d48e74261795d27b",
             ]
         );
 
         let inclusion_proof_segments: Vec<String> = chunk
             .inclusion_proof(64)
             .into_iter()
-            .map(|x| Bytes::from(x).to_string())
+            .map(|x| x.encode_hex::<String>())
             .collect();
 
         assert_eq!(
             inclusion_proof_segments,
             vec![
-                "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
-                "0xb4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d30",
-                "0x21ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85",
-                "0xe58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a19344",
-                "0x0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d",
-                "0x745bae095b6ff5416b4a351a167f731db6d6f5924f30cd88d48e74261795d27b",
+                "0000000000000000000000000000000000000000000000000000000000000000",
+                "ad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
+                "b4c11951957c6f8f642c4af61cd6b24640fec6dc7fc607ee8206a99e92410d30",
+                "21ddb9a356815c3fac1026b6dec5df3124afbadb485c9ba5a3e3398a04b7ba85",
+                "e58769b32a1beaf1ea27375a44095a0d1fb664ce2dd358e7fcbfb78c26a19344",
+                "0eb01ebfc9ed27500cd4dfc979272d1f0913cc9f66540d7e8005811109e1cf2d",
+                "745bae095b6ff5416b4a351a167f731db6d6f5924f30cd88d48e74261795d27b",
             ]
         );
     }

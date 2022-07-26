@@ -1,6 +1,6 @@
 use std::io::{BufRead, BufReader, Cursor};
 
-use ethers::utils::keccak256;
+use crate::keccak256;
 
 use crate::{
     chunk::{Chunk, ChunkOptions},
@@ -395,7 +395,7 @@ impl ChunkedFile {
 mod tests {
     use std::{fs::File, io::Read};
 
-    use ethers::prelude::Bytes;
+    use hex::ToHex;
 
     use super::*;
 
@@ -501,8 +501,8 @@ mod tests {
         );
 
         assert_eq!(
-            Bytes::from(chunked_file.address()).to_string(),
-            "0xb8d17f296190ccc09a2c36b7a59d0f23c4479a3958c3bb02dc669466ec919c5d"
+            chunked_file.address().encode_hex::<String>(),
+            "b8d17f296190ccc09a2c36b7a59d0f23c4479a3958c3bb02dc669466ec919c5d"
         );
     }
 
