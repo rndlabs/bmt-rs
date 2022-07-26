@@ -23,8 +23,8 @@ impl Default for ChunkOptions {
 impl Clone for ChunkOptions {
     fn clone(&self) -> Self {
         Self {
-            max_payload_size: self.max_payload_size.clone(),
-            span_length: self.span_length.clone(),
+            max_payload_size: self.max_payload_size,
+            span_length: self.span_length,
         }
     }
 }
@@ -51,7 +51,7 @@ impl Clone for Chunk {
     fn clone(&self) -> Self {
         Self {
             payload: self.payload.clone(),
-            payload_length: self.payload_length.clone(),
+            payload_length: self.payload_length,
             span: self.span.clone(),
             options: self.options.clone(),
         }
@@ -91,30 +91,30 @@ impl Chunk {
         }
     }
 
-    pub fn payload(self: &Self) -> &Vec<u8> {
+    pub fn payload(&self) -> &Vec<u8> {
         &self.payload
     }
 
-    pub fn max_payload_length(self: &Self) -> usize {
+    pub fn max_payload_length(&self) -> usize {
         self.options.max_payload_size
     }
 
-    pub fn span_length(self: &Self) -> u8 {
+    pub fn span_length(&self) -> u8 {
         self.options.span_length
     }
 
-    pub fn span(self: &Self) -> &Span {
+    pub fn span(&self) -> &Span {
         &self.span
     }
 
-    pub fn address(self: &Self) -> Vec<u8> {
+    pub fn address(&self) -> Vec<u8> {
         let mut hash_input: Vec<u8> = self.span().to_bytes().into_iter().collect();
         hash_input.extend(&self.bmt_root_hash());
 
         Vec::from(keccak256(hash_input))
     }
 
-    pub fn inclusion_proof(self: &Self, mut segment_index: usize) -> Vec<Vec<u8>> {
+    pub fn inclusion_proof(&self, mut segment_index: usize) -> Vec<Vec<u8>> {
         let payload_length = self.payload().len();
 
         if segment_index * SEGMENT_SIZE >= payload_length {
@@ -142,14 +142,14 @@ impl Chunk {
                     .to_vec(),
             );
 
-            segment_index = segment_index >> 1;
+            segment_index >>= 1;
         }
 
         sister_segments
     }
 
     pub fn root_hash_from_inclusion_proof(
-        self: &Self,
+        &self,
         proof_segments: Vec<Vec<u8>>,
         prove_segment: Vec<u8>,
         mut prove_segment_index: u32,
@@ -168,13 +168,13 @@ impl Chunk {
                 _ => panic!("Impossible"),
             };
 
-            prove_segment_index = prove_segment_index >> 1;
+            prove_segment_index >>= 1;
         }
 
         Bytes::from(calculated_hash)
     }
 
-    pub fn bmt(self: &Self) -> Vec<Vec<u8>> {
+    pub fn bmt(&self) -> Vec<Vec<u8>> {
         let payload_length = self.payload.len();
         if payload_length > self.options.max_payload_size {
             panic!("Invalid data length {}", payload_length);
@@ -209,7 +209,7 @@ impl Chunk {
         tree
     }
 
-    pub fn bmt_root_hash(self: &Self) -> Bytes {
+    pub fn bmt_root_hash(&self) -> Bytes {
         let payload_length = self.payload.len();
         if payload_length > self.options.max_payload_size {
             panic!("Invalid data length {}", payload_length);

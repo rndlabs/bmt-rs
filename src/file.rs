@@ -37,7 +37,7 @@ impl ChunkedFile {
     }
 
     // splitter
-    pub fn leaf_chunks(self: &Self) -> Vec<Chunk> {
+    pub fn leaf_chunks(&self) -> Vec<Chunk> {
         let mut reader =
             BufReader::with_capacity(self.options.max_payload_size, Cursor::new(&self.payload));
 
@@ -73,12 +73,12 @@ impl ChunkedFile {
         chunks
     }
 
-    pub fn address(self: &Self) -> Vec<u8> {
+    pub fn address(&self) -> Vec<u8> {
         Self::bmt_root_chunk(&mut self.leaf_chunks()).address()
     }
 
     pub fn file_inclusion_proof_bottom_up(
-        self: &Self,
+        &self,
         mut segment_index: usize,
     ) -> Vec<ChunkInclusionProof> {
         if segment_index * SEGMENT_SIZE >= self.span.value().try_into().unwrap() {
@@ -108,14 +108,14 @@ impl ChunkedFile {
                     panic!("Impossible");
                 }
 
-                segment_index = segment_index >> chunk_bmt_levels; // log2(128) -> skip this level check now
+                segment_index >>= chunk_bmt_levels; // log2(128) -> skip this level check now
                 loop {
                     let (next_level_chunks, next_level_carrier_chunk) =
                         Self::next_bmt_level(&mut level_chunks, carrier_chunk);
                     level_chunks = next_level_chunks;
                     carrier_chunk = next_level_carrier_chunk;
 
-                    segment_index = segment_index >> chunk_bmt_levels;
+                    segment_index >>= chunk_bmt_levels;
 
                     if segment_index % max_segment_count != 0 {
                         break;
@@ -187,7 +187,7 @@ impl ChunkedFile {
                     .into_iter()
                     .collect(),
                 };
-                prove_segment_index = prove_segment_index / 2;
+                prove_segment_index /= 2;
             }
             calculated_hash = Vec::<u8>::from(keccak256::<Vec<u8>>(
                 prove_chunk
@@ -200,8 +200,7 @@ impl ChunkedFile {
             // this line is necessary if the prove_segment_index
             // was in a carrier chunk
             prove_segment_index = parent_chunk_index as usize;
-            last_chunk_index =
-                last_chunk_index >> chunk_bmt_levels + (level as usize) * chunk_bmt_levels;
+            last_chunk_index >>= chunk_bmt_levels + (level as usize) * chunk_bmt_levels;
         }
 
         calculated_hash
@@ -222,22 +221,22 @@ impl ChunkedFile {
         {
             // there is only the root chunk
             // segment_index is carrier chunk
-            segment_index = segment_index >> chunk_bmt_levels;
+            segment_index >>= chunk_bmt_levels;
             while segment_index % SEGMENT_SIZE == 0 {
                 level += 1;
-                segment_index = segment_index >> chunk_bmt_levels;
+                segment_index >>= chunk_bmt_levels;
             }
         } else {
-            segment_index = segment_index >> chunk_bmt_levels;
+            segment_index >>= chunk_bmt_levels;
         }
 
         (segment_index.try_into().unwrap(), level)
     }
 
-    pub fn bmt(self: &Self) -> Vec<Vec<Chunk>> {
+    pub fn bmt(&self) -> Vec<Vec<Chunk>> {
         let leaf_chunks = &mut self.leaf_chunks();
 
-        if leaf_chunks.len() == 0 {
+        if leaf_chunks.is_empty() {
             panic!("The given chunk vector is empty");
         }
 

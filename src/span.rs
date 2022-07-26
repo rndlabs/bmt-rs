@@ -12,19 +12,19 @@ impl Span {
         }
     }
 
-    pub fn value(self: &Self) -> u64 {
+    pub fn value(&self) -> u64 {
         self.value
     }
 
-    pub fn to_bytes(self: &Self) -> [u8; 8] {
-        u64::from(self.value).to_le_bytes()
+    pub fn to_bytes(&self) -> [u8; 8] {
+        self.value.to_le_bytes()
     }
 }
 
 impl Clone for Span {
     fn clone(&self) -> Self {
         Self {
-            value: self.value.clone(),
+            value: self.value,
         }
     }
 }
@@ -41,7 +41,7 @@ mod tests {
 
     #[test]
     fn max_span_size() {
-        const MAX_SPAN_SIZE: u64 = 2 ^ 32 - 1;
+        const MAX_SPAN_SIZE: u64 = (2^32) - 1;
         let span = Span::new(MAX_SPAN_SIZE);
         assert_eq!(u64::from_le_bytes(span.to_bytes()), MAX_SPAN_SIZE);
     }
