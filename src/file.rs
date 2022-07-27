@@ -398,6 +398,8 @@ mod tests {
 
     use super::*;
 
+    use test::Bencher;
+
     const EXPECTED_SPAN: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
 
     fn setup_carrier_chunk_file() -> (Vec<u8>, usize) {
@@ -433,6 +435,16 @@ mod tests {
         let file_length = payload.len();
 
         (payload, file_length)
+    }
+
+    #[bench]
+    fn big_file_bench(b: &mut Bencher) {
+        let (payload, _file_length) = setup_bos_chunk_file();
+        let chunked_file = ChunkedFile::new(payload.clone(), ChunkOptions::default());
+
+        b.iter(|| {
+            chunked_file.bmt()
+        });
     }
 
     #[test]
