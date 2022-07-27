@@ -442,9 +442,7 @@ mod tests {
         let (payload, _file_length) = setup_bos_chunk_file();
         let chunked_file = ChunkedFile::new(payload.clone(), ChunkOptions::default());
 
-        b.iter(|| {
-            chunked_file.bmt()
-        });
+        b.iter(|| chunked_file.bmt());
     }
 
     #[test]
