@@ -241,7 +241,6 @@ impl ChunkedFile {
         level_chunks.push(leaf_chunks.to_vec());
 
         while level_chunks[level_chunks.len() - 1].len() != 1 {
-            eprintln!("Passing level {}", level_chunks.len());
             let level_chunks_length = level_chunks.len();
             let (next_level_chunks, next_level_carrier_chunk) =
                 Self::next_bmt_level(&mut level_chunks[level_chunks_length - 1], carrier_chunk);
