@@ -2,6 +2,7 @@ use crate::{keccak256, span::Span, SEGMENT_SIZE};
 
 use crate::{DEFAULT_MAX_PAYLOAD_SIZE, DEFAULT_MIN_PAYLOAD_SIZE, HASH_SIZE, SEGMENT_PAIR_SIZE};
 
+#[derive(Clone,Debug)]
 pub struct ChunkOptions {
     pub max_payload_size: usize,
 }
@@ -14,30 +15,12 @@ impl Default for ChunkOptions {
     }
 }
 
-impl Clone for ChunkOptions {
-    fn clone(&self) -> Self {
-        Self {
-            max_payload_size: self.max_payload_size,
-        }
-    }
-}
-
+#[derive(Clone,Debug)]
 pub struct Chunk {
     payload: Vec<u8>,
     pub payload_length: usize,
     span: Span,
     options: ChunkOptions,
-}
-
-impl Clone for Chunk {
-    fn clone(&self) -> Self {
-        Self {
-            payload: self.payload.clone(),
-            payload_length: self.payload_length,
-            span: self.span.clone(),
-            options: self.options.clone(),
-        }
-    }
 }
 
 impl Chunk {
