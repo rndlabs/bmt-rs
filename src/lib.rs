@@ -1,7 +1,3 @@
-#![feature(test)]
-
-extern crate test;
-
 use tiny_keccak::{Hasher, Keccak};
 
 pub mod chunk;

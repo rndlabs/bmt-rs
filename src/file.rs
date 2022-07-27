@@ -391,14 +391,12 @@ impl ChunkedFile {
 // }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::{fs::File, io::Read};
 
     use hex::ToHex;
 
     use super::*;
-
-    use test::Bencher;
 
     const EXPECTED_SPAN: [u8; 8] = [3, 0, 0, 0, 0, 0, 0, 0];
 
@@ -435,14 +433,6 @@ mod tests {
         let file_length = payload.len();
 
         (payload, file_length)
-    }
-
-    #[bench]
-    fn big_file_bench(b: &mut Bencher) {
-        let (payload, _file_length) = setup_bos_chunk_file();
-        let chunked_file = ChunkedFile::new(payload.clone(), ChunkOptions::default());
-
-        b.iter(|| chunked_file.bmt());
     }
 
     #[test]
